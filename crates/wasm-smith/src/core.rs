@@ -589,22 +589,14 @@ impl Module {
                 None => panic!("signature index refers to a type out of bounds"),
                 Some((_, Some(idx))) => *idx as usize,
                 Some((wasmparser::Type::Func(func_type), index_store)) => {
-                    let multi_value_required = func_type.results().len() > 1;
+                    let multi_value_required = func_type.returns.len() > 1;
                     let new_index = first_type_index + new_types.len();
                     if new_index >= max_types || (multi_value_required && !multi_value_enabled) {
                         return None;
                     }
                     let func_type = Rc::new(FuncType {
-                        params: func_type
-                            .params()
-                            .iter()
-                            .map(|t| convert_type(*t))
-                            .collect(),
-                        results: func_type
-                            .results()
-                            .iter()
-                            .map(|t| convert_type(*t))
-                            .collect(),
+                        params: func_type.params.iter().map(|t| convert_type(*t)).collect(),
+                        results: func_type.returns.iter().map(|t| convert_type(*t)).collect(),
                     });
                     index_store.replace(new_index as u32);
                     new_types.push(Type::Func(Rc::clone(&func_type)));
@@ -1333,8 +1325,10 @@ pub(crate) fn configured_valtypes(config: &dyn Config) -> Vec<ValType> {
     let mut valtypes = Vec::with_capacity(7);
     valtypes.push(ValType::I32);
     valtypes.push(ValType::I64);
-    valtypes.push(ValType::F32);
-    valtypes.push(ValType::F64);
+    if config.float_enabled() {
+        valtypes.push(ValType::F32);
+        valtypes.push(ValType::F64);
+    }
     if config.simd_enabled() {
         valtypes.push(ValType::V128);
     }
@@ -1640,6 +1634,7 @@ flags! {
     #[cfg_attr(feature = "_internal_cli", derive(serde::Deserialize))]
     pub enum InstructionKind: u16 {
         Numeric,
+        Float,
         Vector,
         Reference,
         Parametric,
@@ -1655,6 +1650,7 @@ impl FromStr for InstructionKind {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "numeric" => Ok(InstructionKind::Numeric),
+            "float" => Ok(InstructionKind::Float),
             "vector" => Ok(InstructionKind::Vector),
             "reference" => Ok(InstructionKind::Reference),
             "parametric" => Ok(InstructionKind::Parametric),

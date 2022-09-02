@@ -331,6 +331,11 @@ pub trait Config: 'static + std::fmt::Debug {
         false
     }
 
+    /// TODO
+    fn float_enabled(&self) -> bool {
+        false
+    }
+
     /// Determines whether the Relaxed SIMD proposal is enabled for
     /// generating instructions.
     ///
@@ -519,6 +524,7 @@ pub struct SwarmConfig {
     pub saturating_float_to_int_enabled: bool,
     pub sign_extension_enabled: bool,
     pub simd_enabled: bool,
+    pub float_enabled: bool,
     pub threads_enabled: bool,
     pub allowed_instructions: InstructionKinds,
     pub max_table_elements: u32,
@@ -550,6 +556,7 @@ impl<'a> Arbitrary<'a> for SwarmConfig {
             bulk_memory_enabled: reference_types_enabled || u.arbitrary()?,
             reference_types_enabled,
             simd_enabled: u.arbitrary()?,
+            float_enabled: u.arbitrary()?,
             multi_value_enabled: u.arbitrary()?,
             max_aliases: u.int_in_range(0..=MAX_MAXIMUM)?,
             max_nesting_depth: u.int_in_range(0..=10)?,
@@ -734,6 +741,10 @@ impl Config for SwarmConfig {
 
     fn simd_enabled(&self) -> bool {
         self.simd_enabled
+    }
+
+    fn float_enabled(&self) -> bool {
+        self.float_enabled
     }
 
     fn relaxed_simd_enabled(&self) -> bool {

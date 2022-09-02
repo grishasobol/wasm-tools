@@ -118,8 +118,8 @@ instructions! {
     // Memory instructions.
     (Some(have_memory_and_offset), i32_load, Memory),
     (Some(have_memory_and_offset), i64_load, Memory),
-    (Some(have_memory_and_offset), f32_load, Memory),
-    (Some(have_memory_and_offset), f64_load, Memory),
+    (Some(float_memory), f32_load, Memory),
+    (Some(float_memory), f64_load, Memory),
     (Some(have_memory_and_offset), i32_load_8_s, Memory),
     (Some(have_memory_and_offset), i32_load_8_u, Memory),
     (Some(have_memory_and_offset), i32_load_16_s, Memory),
@@ -148,8 +148,8 @@ instructions! {
     // Numeric instructions.
     (None, i32_const, Numeric),
     (None, i64_const, Numeric),
-    (None, f32_const, Numeric),
-    (None, f64_const, Numeric),
+    (Some(float_enabled), f32_const, Numeric),
+    (Some(float_enabled), f64_const, Numeric),
     (Some(i32_on_stack), i32_eqz, Numeric),
     (Some(i32_i32_on_stack), i32_eq, Numeric),
     (Some(i32_i32_on_stack), i32_ne, Numeric),
@@ -259,20 +259,20 @@ instructions! {
     (Some(f32_on_stack), i64_trunc_f32_u, Numeric),
     (Some(f64_on_stack), i64_trunc_f64_s, Numeric),
     (Some(f64_on_stack), i64_trunc_f64_u, Numeric),
-    (Some(i32_on_stack), f32_convert_i32_s, Numeric),
-    (Some(i32_on_stack), f32_convert_i32_u, Numeric),
-    (Some(i64_on_stack), f32_convert_i64_s, Numeric),
-    (Some(i64_on_stack), f32_convert_i64_u, Numeric),
+    (Some(i32_on_stack_float), f32_convert_i32_s, Numeric),
+    (Some(i32_on_stack_float), f32_convert_i32_u, Numeric),
+    (Some(i64_on_stack_float), f32_convert_i64_s, Numeric),
+    (Some(i64_on_stack_float), f32_convert_i64_u, Numeric),
     (Some(f64_on_stack), f32_demote_f64, Numeric),
-    (Some(i32_on_stack), f64_convert_i32_s, Numeric),
-    (Some(i32_on_stack), f64_convert_i32_u, Numeric),
-    (Some(i64_on_stack), f64_convert_i64_s, Numeric),
-    (Some(i64_on_stack), f64_convert_i64_u, Numeric),
+    (Some(i32_on_stack_float), f64_convert_i32_s, Numeric),
+    (Some(i32_on_stack_float), f64_convert_i32_u, Numeric),
+    (Some(i64_on_stack_float), f64_convert_i64_s, Numeric),
+    (Some(i64_on_stack_float), f64_convert_i64_u, Numeric),
     (Some(f32_on_stack), f64_promote_f32, Numeric),
     (Some(f32_on_stack), i32_reinterpret_f32, Numeric),
     (Some(f64_on_stack), i64_reinterpret_f64, Numeric),
-    (Some(i32_on_stack), f32_reinterpret_i32, Numeric),
-    (Some(i64_on_stack), f64_reinterpret_i64, Numeric),
+    (Some(i32_on_stack_float), f32_reinterpret_i32, Numeric),
+    (Some(i64_on_stack_float), f64_reinterpret_i64, Numeric),
     (Some(extendable_i32_on_stack), i32_extend_8_s, Numeric),
     (Some(extendable_i32_on_stack), i32_extend_16_s, Numeric),
     (Some(extendable_i64_on_stack), i64_extend_8_s, Numeric),
@@ -1685,6 +1685,18 @@ fn have_memory(module: &Module, _: &mut CodeBuilder) -> bool {
 }
 
 #[inline]
+fn float_enabled(module: &Module, _: &mut CodeBuilder) -> bool {
+    module.config.float_enabled()
+}
+
+#[inline]
+fn float_memory(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled()
+        && ((builder.allocs.memory32.len() > 0 && builder.type_on_stack(ValType::I32))
+            || (builder.allocs.memory64.len() > 0 && builder.type_on_stack(ValType::I64)))
+}
+
+#[inline]
 fn have_memory_and_offset(_module: &Module, builder: &mut CodeBuilder) -> bool {
     (builder.allocs.memory32.len() > 0 && builder.type_on_stack(ValType::I32))
         || (builder.allocs.memory64.len() > 0 && builder.type_on_stack(ValType::I64))
@@ -1873,7 +1885,7 @@ fn i64_store(
 
 #[inline]
 fn f32_store_valid(module: &Module, builder: &mut CodeBuilder) -> bool {
-    store_valid(module, builder, || ValType::F32)
+    module.config.float_enabled() && store_valid(module, builder, || ValType::F32)
 }
 
 fn f32_store(
@@ -1888,7 +1900,7 @@ fn f32_store(
 
 #[inline]
 fn f64_store_valid(module: &Module, builder: &mut CodeBuilder) -> bool {
-    store_valid(module, builder, || ValType::F64)
+    module.config.float_enabled() && store_valid(module, builder, || ValType::F64)
 }
 
 fn f64_store(
@@ -2143,6 +2155,11 @@ fn f64_const(u: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Res
 }
 
 #[inline]
+fn i32_on_stack_float(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.type_on_stack(ValType::I32)
+}
+
+#[inline]
 fn i32_on_stack(_: &Module, builder: &mut CodeBuilder) -> bool {
     builder.type_on_stack(ValType::I32)
 }
@@ -2216,6 +2233,11 @@ fn i32_ge_u(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Resu
     builder.pop_operands(&[ValType::I32, ValType::I32]);
     builder.push_operands(&[ValType::I32]);
     Ok(Instruction::I32GeU)
+}
+
+#[inline]
+fn i64_on_stack_float(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.types_on_stack(&[ValType::I64])
 }
 
 #[inline]
@@ -2294,8 +2316,8 @@ fn i64_ge_u(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Resu
     Ok(Instruction::I64GeU)
 }
 
-fn f32_f32_on_stack(_: &Module, builder: &mut CodeBuilder) -> bool {
-    builder.types_on_stack(&[ValType::F32, ValType::F32])
+fn f32_f32_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.types_on_stack(&[ValType::F32, ValType::F32])
 }
 
 fn f32_eq(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Result<Instruction> {
@@ -2334,8 +2356,8 @@ fn f32_ge(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Result
     Ok(Instruction::F32Ge)
 }
 
-fn f64_f64_on_stack(_: &Module, builder: &mut CodeBuilder) -> bool {
-    builder.types_on_stack(&[ValType::F64, ValType::F64])
+fn f64_f64_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.types_on_stack(&[ValType::F64, ValType::F64])
 }
 
 fn f64_eq(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Result<Instruction> {
@@ -2591,8 +2613,8 @@ fn i64_rotr(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Resu
 }
 
 #[inline]
-fn f32_on_stack(_: &Module, builder: &mut CodeBuilder) -> bool {
-    builder.types_on_stack(&[ValType::F32])
+fn f32_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.types_on_stack(&[ValType::F32])
 }
 
 fn f32_abs(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Result<Instruction> {
@@ -2684,8 +2706,8 @@ fn f32_copysign(
 }
 
 #[inline]
-fn f64_on_stack(_: &Module, builder: &mut CodeBuilder) -> bool {
-    builder.types_on_stack(&[ValType::F64])
+fn f64_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
+    module.config.float_enabled() && builder.types_on_stack(&[ValType::F64])
 }
 
 fn f64_abs(_: &mut Unstructured, _: &Module, builder: &mut CodeBuilder) -> Result<Instruction> {
@@ -2787,7 +2809,9 @@ fn i32_wrap_i64(
 }
 
 fn nontrapping_f32_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
-    module.config.saturating_float_to_int_enabled() && f32_on_stack(module, builder)
+    module.config.float_enabled()
+        && module.config.saturating_float_to_int_enabled()
+        && f32_on_stack(module, builder)
 }
 
 fn i32_trunc_f32_s(
@@ -2811,7 +2835,9 @@ fn i32_trunc_f32_u(
 }
 
 fn nontrapping_f64_on_stack(module: &Module, builder: &mut CodeBuilder) -> bool {
-    module.config.saturating_float_to_int_enabled() && f64_on_stack(module, builder)
+    module.config.float_enabled()
+        && module.config.saturating_float_to_int_enabled()
+        && f64_on_stack(module, builder)
 }
 
 fn i32_trunc_f64_s(
