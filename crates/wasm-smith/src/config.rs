@@ -454,6 +454,11 @@ pub trait Config: 'static + std::fmt::Debug {
     fn threads_enabled(&self) -> bool {
         false
     }
+
+    /// TODO
+    fn memory_grow_enabled(&self) -> bool {
+        false
+    }
 }
 
 /// The default configuration.
@@ -529,6 +534,7 @@ pub struct SwarmConfig {
     pub allowed_instructions: InstructionKinds,
     pub max_table_elements: u32,
     pub table_max_size_required: bool,
+    pub memory_grow_enabled: bool,
 }
 
 impl<'a> Arbitrary<'a> for SwarmConfig {
@@ -574,6 +580,7 @@ impl<'a> Arbitrary<'a> for SwarmConfig {
             },
             table_max_size_required: u.arbitrary()?,
             max_table_elements: u.int_in_range(0..=1_000_000)?,
+            memory_grow_enabled: u.arbitrary()?,
 
             // These fields, unlike the ones above, are less useful to set.
             // They either make weird inputs or are for features not widely
